@@ -374,7 +374,7 @@ GitHub repo names cannot contain spaces or `&`, so the slug uses hyphens while k
 
 ## Implementation Checklist
 
-- [ ] Initialize git, `.gitignore`, GitHub repo (`Harley2626/AI-WhatsApp-Receptionist-Booking-Platform`), push initial commit
+- [x] Initialize git, `.gitignore`, GitHub repo (`Harley2626/AI-WhatsApp-Receptionist-Booking-Platform`), push initial commit
 - [ ] Initialize Next.js 15 project, README, .env.example, Tailwind + shadcn/ui
 - [ ] Create Supabase migrations: all core tables, RLS policies, indexes, seed helpers
 - [ ] Implement Supabase Auth + 8-step onboarding wizard
