@@ -375,14 +375,22 @@ GitHub repo names cannot contain spaces or `&`, so the slug uses hyphens while k
 ## Implementation Checklist
 
 - [x] Initialize git, `.gitignore`, GitHub repo (`Harley2626/AI-WhatsApp-Receptionist-Booking-Platform`), push initial commit
-- [ ] Initialize Next.js 15 project, README, .env.example, Tailwind + shadcn/ui
-- [ ] Create Supabase migrations: all core tables, RLS policies, indexes, seed helpers
-- [ ] Implement Supabase Auth + 8-step onboarding wizard
-- [ ] Build booking service: slot generation, CRUD, availability from business_hours
-- [ ] Meta WhatsApp webhook + outbound messaging + conversation/message persistence
-- [ ] OpenAI agent with tools for FAQ, availability, book/reschedule/cancel, deposit link, escalation
-- [ ] PayFast deposit link generation + ITN webhook + payment status in dashboard
-- [ ] Google Calendar OAuth + booking sync on create/update/cancel
-- [ ] Mobile-first dashboard: home, calendar, customers, services, availability, payments, reports
-- [ ] Cron jobs for 24h reminders and post-appointment follow-ups
-- [ ] Webhook idempotency, error handling, sandbox test checklist, deploy to Vercel + Supabase
+- [x] Initialize Next.js project (v16, App Router), README, .env.example, Tailwind + hand-rolled UI kit
+- [x] Create Supabase migrations: all core tables, RLS policies, indexes, overlap-safe booking constraint
+- [x] Implement Supabase Auth (magic link) + 6-step onboarding wizard (business, services, hours, calendar, WhatsApp, payments) + go-live
+- [x] Build booking service: slot generation, CRUD, availability from business_hours, double-booking protection
+- [x] Meta WhatsApp webhook + outbound messaging + conversation/message persistence
+- [x] OpenAI agent with tools for FAQ, availability, book/reschedule/cancel, deposit link, escalation
+- [x] PayFast deposit link generation + ITN webhook + payment status in dashboard
+- [x] Google Calendar OAuth + booking sync on create/update/cancel
+- [x] Mobile-first dashboard: home, calendar, customers, services, availability, payments, reports, settings
+- [x] Cron job for 24h reminders and post-appointment follow-ups (`vercel.json` + `/api/cron/reminders`)
+- [ ] Webhook idempotency hardening under load, end-to-end sandbox test pass (WhatsApp test number + PayFast sandbox), deploy to Vercel + Supabase
+
+### Notes on deviations from the original plan
+
+- Used **Next.js 16** (latest stable at build time) instead of 15 — App Router API is compatible; `middleware.ts` was written as `proxy.ts` per Next 16's rename.
+- Skipped the shadcn/ui CLI in favor of a small hand-rolled Tailwind component kit (`src/components/ui`) to avoid interactive-prompt friction in this environment — same visual outcome, fewer dependencies.
+- Product was named **"Yebo"** for a friendlier, South African-flavoured WhatsApp persona (customers chat with "Yebo", not a generic bot).
+- No in-dashboard reply/inbox feature was built for escalated conversations — the WhatsApp number is the business's real Meta number, so owners can reply directly from the WhatsApp Business app when a conversation is flagged "escalated" in the dashboard. A full support inbox was judged out of scope for the MVP per the non-goals list.
+- The project folder itself contains an `&`, which breaks Windows `cmd.exe`-based tooling (`npm`/`next` scripts). Worked around locally with a directory junction at `C:\Development\AI-WhatsApp-Receptionist-Booking-Platform`; recommend renaming the real folder (removing the `&`) next time the workspace is reopened.
