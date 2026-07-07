@@ -166,6 +166,28 @@ export async function getOrCreateCustomer(
   return created;
 }
 
+const REMINDER_LEAD_MINUTES = 24 * 60;
+const FOLLOW_UP_DELAY_MINUTES = 120;
+
+export async function clearScheduledJobs(db: DB, bookingId: string): Promise<void> {
+  await db.from("scheduled_jobs").delete().eq("booking_id", bookingId).is("sent_at", null);
+}
+
+export async function scheduleBookingJobs(
+  db: DB,
+  booking: Pick<Booking, "id" | "business_id" | "starts_at" | "ends_at">
+): Promise<void> {
+  const jobs: { business_id: string; booking_id: string; type: "reminder" | "follow_up"; run_at: string }[] = [];
+  const reminderAt = addMinutes(new Date(booking.starts_at), -REMINDER_LEAD_MINUTES);
+  if (reminderAt.getTime() > Date.now()) {
+    jobs.push({ business_id: booking.business_id, booking_id: booking.id, type: "reminder", run_at: reminderAt.toISOString() });
+  }
+  const followUpAt = addMinutes(new Date(booking.ends_at), FOLLOW_UP_DELAY_MINUTES);
+  jobs.push({ business_id: booking.business_id, booking_id: booking.id, type: "follow_up", run_at: followUpAt.toISOString() });
+
+  if (jobs.length > 0) await db.from("scheduled_jobs").insert(jobs);
+}
+
 export async function createBooking(
   db: DB,
   params: {
@@ -195,6 +217,8 @@ export async function createBooking(
     if (error.code === "23P01") throw new BookingConflictError();
     throw error;
   }
+
+  await scheduleBookingJobs(db, data);
   return data;
 }
 
@@ -214,6 +238,9 @@ export async function rescheduleBooking(
     if (error.code === "23P01") throw new BookingConflictError();
     throw error;
   }
+
+  await clearScheduledJobs(db, params.bookingId);
+  await scheduleBookingJobs(db, data);
   return data;
 }
 
@@ -226,6 +253,8 @@ export async function cancelBooking(db: DB, params: { bookingId: string; busines
     .select("*")
     .single<Booking>();
   if (error) throw error;
+
+  await clearScheduledJobs(db, params.bookingId);
   return data;
 }
 
