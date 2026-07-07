@@ -2,11 +2,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { addMinutes } from "date-fns";
 import { zonedDateTimeToUtc, dayOfWeekForDate, formatInTimeZone } from "@/lib/time";
 import { BUSINESS_TIMEZONE } from "@/lib/utils";
-import type { Booking, BusinessHour, Customer, Service } from "@/types/database";
+import type { Booking, BookingStatus, BusinessHour, Customer, Service } from "@/types/database";
 
 type DB = SupabaseClient;
 
 const SLOT_INTERVAL_MINUTES = 30;
+
+/** How long a booking's slot is held while awaiting payment before it's released. */
+export const PAYMENT_HOLD_MINUTES = 30;
 
 export class BookingConflictError extends Error {
   constructor() {
@@ -197,8 +200,12 @@ export async function createBooking(
     startsAt: Date;
     endsAt: Date;
     notes?: string;
+    /** 'pending' holds the slot awaiting payment; 'confirmed' is used when no payment is required. */
+    status?: BookingStatus;
+    paymentExpiresAt?: Date | null;
   }
 ): Promise<Booking> {
+  const status = params.status ?? "confirmed";
   const { data, error } = await db
     .from("bookings")
     .insert({
@@ -207,7 +214,8 @@ export async function createBooking(
       customer_id: params.customerId,
       starts_at: params.startsAt.toISOString(),
       ends_at: params.endsAt.toISOString(),
-      status: "confirmed",
+      status,
+      payment_expires_at: params.paymentExpiresAt?.toISOString() ?? null,
       notes: params.notes ?? null,
     })
     .select("*")
@@ -218,7 +226,66 @@ export async function createBooking(
     throw error;
   }
 
+  // Reminders/follow-ups are only scheduled once a booking is actually confirmed.
+  // Bookings held pending payment get a payment-expiry job instead (see schedulePaymentExpiry).
+  if (status === "confirmed") {
+    await scheduleBookingJobs(db, data);
+  }
+  return data;
+}
+
+export async function schedulePaymentExpiry(
+  db: DB,
+  booking: Pick<Booking, "id" | "business_id">,
+  expiresAt: Date
+): Promise<void> {
+  await db.from("scheduled_jobs").insert({
+    business_id: booking.business_id,
+    booking_id: booking.id,
+    type: "payment_expiry",
+    run_at: expiresAt.toISOString(),
+  });
+}
+
+/** Called once PayFast confirms payment: confirms the booking and schedules its reminders/follow-up. */
+export async function confirmBookingAfterPayment(
+  db: DB,
+  params: { bookingId: string; businessId: string }
+): Promise<Booking | null> {
+  const { data, error } = await db
+    .from("bookings")
+    .update({ status: "confirmed", payment_expires_at: null })
+    .eq("id", params.bookingId)
+    .eq("business_id", params.businessId)
+    .eq("status", "pending")
+    .select("*")
+    .maybeSingle<Booking>();
+  if (error) throw error;
+  if (!data) return null;
+
+  await clearScheduledJobs(db, params.bookingId); // drops the now-moot payment_expiry job
   await scheduleBookingJobs(db, data);
+  return data;
+}
+
+/** Called by the payment-expiry job when a held booking was never paid for. */
+export async function expireUnpaidBooking(
+  db: DB,
+  params: { bookingId: string; businessId: string }
+): Promise<Booking | null> {
+  const { data, error } = await db
+    .from("bookings")
+    .update({ status: "cancelled" })
+    .eq("id", params.bookingId)
+    .eq("business_id", params.businessId)
+    .eq("status", "pending")
+    .select("*")
+    .maybeSingle<Booking>();
+  if (error) throw error;
+  if (!data) return null;
+
+  await clearScheduledJobs(db, params.bookingId);
+  await db.from("payments").update({ status: "cancelled" }).eq("booking_id", params.bookingId).eq("status", "pending");
   return data;
 }
 
@@ -255,6 +322,7 @@ export async function cancelBooking(db: DB, params: { bookingId: string; busines
   if (error) throw error;
 
   await clearScheduledJobs(db, params.bookingId);
+  await db.from("payments").update({ status: "cancelled" }).eq("booking_id", params.bookingId).eq("status", "pending");
   return data;
 }
 

@@ -76,8 +76,8 @@ export async function addService(_prev: ActionResult | null, formData: FormData)
     name: formData.get("name"),
     duration_minutes: formData.get("duration_minutes"),
     price_cents: Math.round(Number(formData.get("price_rand") ?? 0) * 100),
-    deposit_cents: formData.get("deposit_rand")
-      ? Math.round(Number(formData.get("deposit_rand")) * 100)
+    payment_amount_cents: formData.get("payment_rand")
+      ? Math.round(Number(formData.get("payment_rand")) * 100)
       : null,
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message };

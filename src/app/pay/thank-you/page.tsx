@@ -10,8 +10,8 @@ export default function PaymentThankYouPage() {
       </div>
       <h1 className="text-xl font-semibold text-foreground">Payment received</h1>
       <p className="max-w-sm text-sm text-muted-foreground">
-        Thanks! Your deposit is confirmed. You can close this tab and head back to WhatsApp — we&rsquo;ll send you a
-        confirmation there too.
+        Thanks! Your payment went through and your booking is confirmed. You can close this tab and head back to
+        WhatsApp — we&rsquo;ll send you a confirmation there too.
       </p>
     </div>
   );

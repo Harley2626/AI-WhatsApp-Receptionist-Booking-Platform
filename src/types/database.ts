@@ -16,7 +16,7 @@ export type MessageDirection = "inbound" | "outbound";
 export type PaymentStatus = "pending" | "paid" | "failed" | "cancelled";
 export type IntegrationType = "whatsapp" | "google_calendar" | "payfast";
 export type IntegrationStatus = "disconnected" | "connected" | "error";
-export type ScheduledJobType = "reminder" | "follow_up";
+export type ScheduledJobType = "reminder" | "follow_up" | "payment_expiry";
 
 export interface Business {
   id: string;
@@ -46,7 +46,9 @@ export interface Service {
   name: string;
   duration_minutes: number;
   price_cents: number;
-  deposit_cents: number | null;
+  /** Optional amount collected before a booking is confirmed — either the full
+   *  price or a partial deposit, depending on what the business chooses. */
+  payment_amount_cents: number | null;
   active: boolean;
   sort_order: number;
   created_at: string;
@@ -98,6 +100,8 @@ export interface Booking {
   status: BookingStatus;
   notes: string | null;
   google_event_id: string | null;
+  /** Set when the booking is 'pending' payment; the hold is released if unpaid by this time. */
+  payment_expires_at: string | null;
   created_at: string;
   updated_at: string;
 }

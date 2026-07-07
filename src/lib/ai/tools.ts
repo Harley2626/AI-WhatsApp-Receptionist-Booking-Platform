@@ -8,10 +8,13 @@ import {
   getServices,
   getUpcomingBookingsForCustomer,
   rescheduleBooking,
+  schedulePaymentExpiry,
   BookingConflictError,
+  PAYMENT_HOLD_MINUTES,
 } from "@/lib/services/booking";
 import { createCalendarEvent, deleteCalendarEvent, updateCalendarEvent } from "@/lib/services/calendar";
 import { createPayFastPaymentUrl, PayFastNotConnectedError } from "@/lib/services/payfast";
+import { getIntegration } from "@/lib/services/integrations";
 import { zonedDateTimeToUtc, todayDateString } from "@/lib/time";
 import { formatCurrency, formatDate, formatTime } from "@/lib/utils";
 import type { Business, Service } from "@/types/database";
@@ -117,19 +120,19 @@ export function getToolDefinitions(): OpenAI.Chat.Completions.ChatCompletionTool
   ];
 }
 
-async function maybeCreateDepositLink(
+async function maybeCreatePaymentLink(
   ctx: ToolContext,
   service: Service,
   bookingId: string
 ): Promise<string | null> {
-  if (!service.deposit_cents) return null;
+  if (!service.payment_amount_cents) return null;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   try {
     return await createPayFastPaymentUrl({
       businessId: ctx.business.id,
       bookingId,
-      amountCents: service.deposit_cents,
-      itemName: `${service.name} deposit — ${ctx.business.name}`,
+      amountCents: service.payment_amount_cents,
+      itemName: `${service.name} — ${ctx.business.name}`,
       customerName: ctx.customerName ?? undefined,
       returnUrl: `${appUrl}/pay/thank-you`,
       cancelUrl: `${appUrl}/pay/cancelled`,
@@ -197,12 +200,21 @@ export async function executeTool(
       }
 
       try {
+        // Only hold the booking pending payment if the service wants payment
+        // AND PayFast is actually connected — otherwise fail open and confirm
+        // the booking outright rather than stranding the customer.
+        const payfastConnected = service.payment_amount_cents ? !!(await getIntegration(ctx.business.id, "payfast")) : false;
+        const requiresPayment = !!service.payment_amount_cents && payfastConnected;
+        const paymentExpiresAt = requiresPayment ? new Date(Date.now() + PAYMENT_HOLD_MINUTES * 60_000) : null;
+
         const booking = await createBooking(ctx.db, {
           businessId: ctx.business.id,
           serviceId: service.id,
           customerId: ctx.customerId,
           startsAt,
           endsAt,
+          status: requiresPayment ? "pending" : "confirmed",
+          paymentExpiresAt,
         });
 
         if (args.customer_name && typeof args.customer_name === "string") {
@@ -210,8 +222,8 @@ export async function executeTool(
         }
 
         const eventId = await createCalendarEvent(ctx.business.id, {
-          summary: `${service.name} — ${ctx.customerName ?? "Customer"}`,
-          description: `Booked via WhatsApp with Yebo.`,
+          summary: `${service.name} — ${ctx.customerName ?? "Customer"}${requiresPayment ? " (awaiting payment)" : ""}`,
+          description: `Booked via WhatsApp with Wazzy.`,
           startsAt,
           endsAt,
           timezone: ctx.business.timezone,
@@ -220,26 +232,30 @@ export async function executeTool(
           await ctx.db.from("bookings").update({ google_event_id: eventId }).eq("id", booking.id);
         }
 
-        const depositUrl = await maybeCreateDepositLink(ctx, service, booking.id);
-        if (depositUrl) {
+        let paymentUrl: string | null = null;
+        if (requiresPayment) {
+          paymentUrl = await maybeCreatePaymentLink(ctx, service, booking.id);
           await ctx.db.from("payments").insert({
             business_id: ctx.business.id,
             booking_id: booking.id,
-            amount_cents: service.deposit_cents,
+            amount_cents: service.payment_amount_cents,
             status: "pending",
-            payment_url: depositUrl,
+            payment_url: paymentUrl,
           });
+          await schedulePaymentExpiry(ctx.db, booking, paymentExpiresAt!);
         }
 
         return {
           success: true,
+          confirmed: !requiresPayment,
           service: service.name,
           date: formatDate(startsAt.toISOString()),
           time: formatTime(startsAt.toISOString()),
           price: formatCurrency(service.price_cents),
-          deposit_required: !!service.deposit_cents,
-          deposit_amount: service.deposit_cents ? formatCurrency(service.deposit_cents) : null,
-          deposit_link: depositUrl,
+          payment_required: requiresPayment,
+          payment_amount: requiresPayment ? formatCurrency(service.payment_amount_cents!) : null,
+          payment_link: paymentUrl,
+          payment_hold_minutes: requiresPayment ? PAYMENT_HOLD_MINUTES : null,
         };
       } catch (error) {
         if (error instanceof BookingConflictError) {

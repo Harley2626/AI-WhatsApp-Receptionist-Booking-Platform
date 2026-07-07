@@ -12,7 +12,7 @@ export default async function AvailabilityPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Availability</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Yebo only offers booking times inside these hours.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Wazzy only offers booking times inside these hours.</p>
       </div>
       <HoursEditor initialHours={hours} />
     </div>

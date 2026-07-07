@@ -66,7 +66,7 @@ flowchart TB
 | Auth | Supabase Auth (email magic link) | Fast signup, no password friction |
 | WhatsApp | Meta Cloud API | Already proven in Be My Dev |
 | AI | OpenAI GPT-4o + tool calling | Reliable structured actions (book/cancel/reschedule) |
-| Payments | PayFast | Standard for SA SMEs; deposit links |
+| Payments | PayFast | Standard for SA SMEs; payment links (full amount or deposit) |
 | Calendar | Google Calendar API (OAuth) | Covers ~80% of target businesses |
 | Jobs | Vercel Cron (or Supabase pg_cron) | Reminders + follow-ups |
 | Validation | Zod | Consistent with Be My Dev |
@@ -79,7 +79,7 @@ All in `supabase/migrations/001_initial.sql`:
 
 - **businesses** — name, phone, timezone, currency (ZAR), onboarding_step, is_live
 - **profiles** — links `auth.users` → `business_id`, role (`owner`)
-- **services** — name, duration_minutes, price_cents, deposit_cents (nullable), active
+- **services** — name, duration_minutes, price_cents, payment_amount_cents (nullable — full price or deposit, business's choice), active
 - **business_hours** — day_of_week, open_time, close_time (simple weekly schedule for MVP)
 - **customers** — whatsapp_phone (unique per business), name
 - **conversations** — customer_id, status, last_message_at
@@ -114,7 +114,7 @@ sequenceDiagram
     AI->>BK: getAvailableSlots(service, date)
   else Book
     AI->>BK: createBooking(...)
-    BK-->>AI: confirmation + optional deposit link
+    BK-->>AI: booking held 'pending' + payment link (if service requires payment), else confirmed immediately
   end
   AI->>WA: Send reply
   WA->>C: AI response
@@ -129,7 +129,7 @@ sequenceDiagram
 **Key files:**
 
 - `src/lib/ai/agent.ts` — orchestration + tool definitions
-- `src/lib/ai/tools.ts` — `getFaqs`, `getAvailableSlots`, `createBooking`, `rescheduleBooking`, `cancelBooking`, `createDepositLink`
+- `src/lib/ai/tools.ts` — `getFaqs`, `getAvailableSlots`, `createBooking`, `rescheduleBooking`, `cancelBooking`, `maybeCreatePaymentLink`
 - `src/lib/services/whatsapp.ts` — send/receive (extend Be My Dev pattern)
 - `src/app/api/webhooks/whatsapp/route.ts` — verify + ingest
 
@@ -141,11 +141,11 @@ Linear onboarding wizard at `src/app/onboarding/`:
 
 1. **Sign up** — Supabase magic link
 2. **Business details** — name, category, phone
-3. **Services** — add 1–3 services (name, duration, price, optional deposit)
+3. **Services** — add 1–3 services (name, duration, price, optional payment amount — full price or deposit)
 4. **Hours** — simple Mon–Sun toggles + open/close
 5. **Calendar** — Google OAuth connect (optional skip with warning)
 6. **WhatsApp** — enter WABA phone number ID + access token (guided setup doc); verify with test message
-7. **Payments** — PayFast merchant ID + key (optional; required only if deposits enabled)
+7. **Payments** — PayFast merchant ID + key (optional; required only if any service has a payment amount set)
 8. **Go live** — flip `businesses.is_live = true`
 
 Post-onboarding: redirect to dashboard. Allow editing all settings from `src/app/dashboard/settings/`.
@@ -158,12 +158,12 @@ Mobile-responsive, minimal clutter per spec:
 
 | Screen | Path | Shows |
 |--------|------|-------|
-| Home | `/dashboard` | Today's bookings, new enquiries, revenue (month), unpaid deposits, upcoming |
+| Home | `/dashboard` | Today's bookings, new enquiries, revenue (month), unpaid holds, upcoming |
 | Calendar | `/dashboard/calendar` | Week/day view of bookings |
 | Customers | `/dashboard/customers` | WhatsApp contacts + booking history |
-| Services | `/dashboard/services` | CRUD services + deposits |
+| Services | `/dashboard/services` | CRUD services + payment amount (full price or deposit) |
 | Availability | `/dashboard/availability` | Weekly hours editor |
-| Payments | `/dashboard/payments` | Deposit status list |
+| Payments | `/dashboard/payments` | Payment status list |
 | Reports | `/dashboard/reports` | Bookings count, conversion, revenue (basic) |
 
 Shared layout: `src/app/dashboard/layout.tsx` with bottom nav on mobile.
@@ -179,11 +179,13 @@ Shared layout: `src/app/dashboard/layout.tsx` with bottom nav on mobile.
 - Idempotency via `wa_message_id` unique constraint
 - Outbound: text messages for MVP (templates for reminders only)
 
-### PayFast (deposits)
+### PayFast (payments)
 
 - `src/lib/services/payfast.ts` — generate signed payment URL
-- ITN webhook at `src/app/api/webhooks/payfast/route.ts` — confirm payment → update booking status
-- AI sends deposit link when service has `deposit_cents > 0`
+- ITN webhook at `src/app/api/webhooks/payfast/route.ts` — confirms payment, flips the booking from `pending` to
+  `confirmed`, schedules its reminder/follow-up jobs, and sends the WhatsApp confirmation
+- AI sends a payment link and holds the booking `pending` when a service has `payment_amount_cents > 0`; the hold is
+  released automatically (via the reminders cron job) if unpaid after `PAYMENT_HOLD_MINUTES` (30 min)
 
 ### Google Calendar
 
@@ -289,7 +291,7 @@ Build in dependency order — each step is testable before moving on.
 ### Sprint 4 — Integrations (Days 8–10)
 
 - Google Calendar OAuth + sync
-- PayFast deposit links + ITN webhook
+- PayFast payment links + ITN webhook
 - Onboarding steps 5–8 (calendar, WhatsApp, payments, go live)
 
 ### Sprint 5 — Dashboard + Automation (Days 11–13)
@@ -364,10 +366,12 @@ GitHub repo names cannot contain spaces or `&`, so the slug uses hyphens while k
 - Business owner completes onboarding in under 10 minutes
 - Customer can book entirely via WhatsApp without human intervention
 - Reschedule and cancel work via WhatsApp
-- Deposit link sent and payment status reflected in dashboard
+- Payment link sent (full amount or deposit) and payment status reflected in dashboard
+- Booking held `pending` until payment clears, then auto-confirmed with a WhatsApp confirmation
+- Unpaid holds auto-expire and release the slot
 - Google Calendar event created on booking
 - Reminder sent 24h before appointment
-- Dashboard shows today's bookings, revenue, and unpaid deposits
+- Dashboard shows today's bookings, revenue, and unpaid holds
 - AI never returns fabricated business info (only DB-backed answers)
 
 ---
@@ -380,8 +384,8 @@ GitHub repo names cannot contain spaces or `&`, so the slug uses hyphens while k
 - [x] Implement Supabase Auth (magic link) + 6-step onboarding wizard (business, services, hours, calendar, WhatsApp, payments) + go-live
 - [x] Build booking service: slot generation, CRUD, availability from business_hours, double-booking protection
 - [x] Meta WhatsApp webhook + outbound messaging + conversation/message persistence
-- [x] OpenAI agent with tools for FAQ, availability, book/reschedule/cancel, deposit link, escalation
-- [x] PayFast deposit link generation + ITN webhook + payment status in dashboard
+- [x] OpenAI agent with tools for FAQ, availability, book/reschedule/cancel, payment link, escalation
+- [x] PayFast payment link generation + ITN webhook + payment status in dashboard + auto-expiring unpaid holds
 - [x] Google Calendar OAuth + booking sync on create/update/cancel
 - [x] Mobile-first dashboard: home, calendar, customers, services, availability, payments, reports, settings
 - [x] Cron job for 24h reminders and post-appointment follow-ups (`vercel.json` + `/api/cron/reminders`)
@@ -391,6 +395,6 @@ GitHub repo names cannot contain spaces or `&`, so the slug uses hyphens while k
 
 - Used **Next.js 16** (latest stable at build time) instead of 15 — App Router API is compatible; `middleware.ts` was written as `proxy.ts` per Next 16's rename.
 - Skipped the shadcn/ui CLI in favor of a small hand-rolled Tailwind component kit (`src/components/ui`) to avoid interactive-prompt friction in this environment — same visual outcome, fewer dependencies.
-- Product was named **"Yebo"** for a friendlier, South African-flavoured WhatsApp persona (customers chat with "Yebo", not a generic bot).
+- Product was renamed **"Wazzy"** (from the original working name "Yebo") — friendly, playful, and instantly readable as "WhatsApp" + "easy". Customers chat with "Wazzy", not a generic bot.
 - No in-dashboard reply/inbox feature was built for escalated conversations — the WhatsApp number is the business's real Meta number, so owners can reply directly from the WhatsApp Business app when a conversation is flagged "escalated" in the dashboard. A full support inbox was judged out of scope for the MVP per the non-goals list.
 - The project folder itself contains an `&`, which breaks Windows `cmd.exe`-based tooling (`npm`/`next` scripts). Worked around locally with a directory junction at `C:\Development\AI-WhatsApp-Receptionist-Booking-Platform`; recommend renaming the real folder (removing the `&`) next time the workspace is reopened.

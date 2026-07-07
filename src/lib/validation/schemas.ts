@@ -15,7 +15,7 @@ export const serviceSchema = z.object({
   name: z.string().trim().min(1, "Service name is required").max(120),
   duration_minutes: z.coerce.number().int().min(5).max(600),
   price_cents: z.coerce.number().int().min(0),
-  deposit_cents: z.coerce.number().int().min(0).nullable().optional(),
+  payment_amount_cents: z.coerce.number().int().min(0).nullable().optional(),
 });
 export type ServiceInput = z.infer<typeof serviceSchema>;
 

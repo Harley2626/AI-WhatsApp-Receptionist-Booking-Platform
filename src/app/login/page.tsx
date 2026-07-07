@@ -77,7 +77,7 @@ export default function LoginPage() {
           <LoginForm />
         </Suspense>
         <p className="text-center text-xs text-muted-foreground">
-          By continuing you agree to receive booking-related emails from Yebo.
+          By continuing you agree to receive booking-related emails from Wazzy.
         </p>
       </div>
     </div>

@@ -1,13 +1,34 @@
-import { MessageCircle } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-export function Logo({ className, iconOnly }: { className?: string; iconOnly?: boolean }) {
+export function LogoMark({ className, size = 32 }: { className?: string; size?: number }) {
   return (
-    <div className={cn("flex items-center gap-2 font-semibold text-foreground", className)}>
-      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-        <MessageCircle className="h-4.5 w-4.5" fill="currentColor" strokeWidth={0} />
-      </span>
-      {!iconOnly && <span className="text-lg tracking-tight">Yebo</span>}
+    <Image
+      src="/logo-icon.png"
+      alt="Wazzy"
+      width={size}
+      height={size}
+      className={cn("shrink-0", className)}
+      priority
+    />
+  );
+}
+
+export function Logo({ className, iconOnly, size = 32 }: { className?: string; iconOnly?: boolean; size?: number }) {
+  return (
+    <div className={cn("flex items-center gap-2", className)}>
+      <LogoMark size={size} />
+      {!iconOnly && (
+        <Image
+          src="/logo-wordmark.png"
+          alt="Wazzy"
+          width={size * 2.7}
+          height={size}
+          className="shrink-0"
+          style={{ width: "auto", height: size * 0.75 }}
+          priority
+        />
+      )}
     </div>
   );
 }

@@ -34,7 +34,9 @@ export function ServicesManager({ services, editable = true }: { services: Servi
                   <p className="truncate font-medium text-foreground">{service.name}</p>
                   <p className="text-sm text-muted-foreground">
                     {formatDuration(service.duration_minutes)} · {formatCurrency(service.price_cents)}
-                    {service.deposit_cents ? ` · ${formatCurrency(service.deposit_cents)} deposit` : ""}
+                    {service.payment_amount_cents
+                      ? ` · ${formatCurrency(service.payment_amount_cents)} payment required to confirm`
+                      : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -97,8 +99,12 @@ export function ServicesManager({ services, editable = true }: { services: Servi
                 </div>
               </div>
               <div>
-                <Label htmlFor="deposit_rand">Deposit (R) — optional</Label>
-                <Input id="deposit_rand" name="deposit_rand" type="number" min={0} step={1} placeholder="0" />
+                <Label htmlFor="payment_rand">Payment required to confirm (R) — optional</Label>
+                <Input id="payment_rand" name="payment_rand" type="number" min={0} step={1} placeholder="0" />
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  Leave blank if no upfront payment is needed. Enter the full price to require payment in full, or a
+                  smaller amount for a deposit — whatever suits this service.
+                </p>
               </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
               <div className="flex gap-2">

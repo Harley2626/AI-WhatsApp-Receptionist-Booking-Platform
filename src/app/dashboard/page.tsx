@@ -14,28 +14,38 @@ export default async function DashboardHomePage() {
   const supabase = await createClient();
   const stats = await getDashboardStats(supabase, business.id, business.timezone);
 
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Good day 👋</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Here&rsquo;s what&rsquo;s happening at {business.name} today.</p>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
+          {greeting}, {business.name} 👋
+        </h1>
+        <p className="mt-1.5 text-base text-muted-foreground">Here&rsquo;s what&rsquo;s happening today.</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard icon={CalendarCheck} label="Today's bookings" value={stats.todayBookings.length} tone="primary" />
-        <StatCard icon={MessageSquarePlus} label="New enquiries" value={stats.newEnquiriesCount} />
-        <StatCard icon={Wallet} label="Deposits this month" value={formatCurrency(stats.revenueCents)} tone="primary" />
-        <StatCard icon={AlertCircle} label="Unpaid deposits" value={stats.unpaidPayments.length} tone={stats.unpaidPayments.length > 0 ? "warning" : "default"} />
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard icon={CalendarCheck} label="Today's bookings" value={stats.todayBookings.length} tone="green" />
+        <StatCard icon={MessageSquarePlus} label="New enquiries" value={stats.newEnquiriesCount} tone="blue" />
+        <StatCard icon={Wallet} label="Payments this month" value={formatCurrency(stats.revenueCents)} tone="yellow" />
+        <StatCard
+          icon={AlertCircle}
+          label="Unpaid holds"
+          value={stats.unpaidPayments.length}
+          tone={stats.unpaidPayments.length > 0 ? "coral" : "default"}
+        />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Today&rsquo;s bookings</CardTitle>
           </CardHeader>
           <CardContent>
             {stats.todayBookings.length === 0 ? (
-              <EmptyState title="Nothing booked for today" description="New WhatsApp bookings will show up here." />
+              <EmptyState icon={CalendarCheck} title="Nothing booked for today" description="New WhatsApp bookings will show up here." />
             ) : (
               <div className="divide-y divide-border">
                 {stats.todayBookings.map((b) => (
@@ -52,7 +62,7 @@ export default async function DashboardHomePage() {
           </CardHeader>
           <CardContent>
             {stats.upcomingBookings.length === 0 ? (
-              <EmptyState title="No upcoming bookings" />
+              <EmptyState icon={CalendarCheck} title="No upcoming bookings" />
             ) : (
               <div className="divide-y divide-border">
                 {stats.upcomingBookings.map((b) => (
@@ -67,19 +77,19 @@ export default async function DashboardHomePage() {
       {stats.unpaidPayments.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Unpaid deposits</CardTitle>
+            <CardTitle>Unpaid holds</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="divide-y divide-border">
               {stats.unpaidPayments.map((p) => {
                 const booking = p.booking as { customer?: { name?: string | null }; service?: { name?: string } } | null;
                 return (
-                  <div key={p.id} className="flex items-center justify-between py-3 text-sm">
+                  <div key={p.id} className="flex items-center justify-between py-3.5 text-sm">
                     <div>
-                      <p className="font-medium text-foreground">{booking?.customer?.name ?? "Customer"}</p>
+                      <p className="font-semibold text-foreground">{booking?.customer?.name ?? "Customer"}</p>
                       <p className="text-muted-foreground">{booking?.service?.name}</p>
                     </div>
-                    <span className="font-medium text-warning">{formatCurrency(p.amount_cents)}</span>
+                    <span className="font-bold text-warning-text">{formatCurrency(p.amount_cents)}</span>
                   </div>
                 );
               })}
@@ -88,7 +98,7 @@ export default async function DashboardHomePage() {
         </Card>
       )}
 
-      <Link href="/dashboard/settings" className="block text-center text-sm text-muted-foreground hover:text-foreground">
+      <Link href="/dashboard/settings" className="block text-center text-sm font-medium text-muted-foreground hover:text-foreground">
         Manage services, hours, and integrations →
       </Link>
     </div>

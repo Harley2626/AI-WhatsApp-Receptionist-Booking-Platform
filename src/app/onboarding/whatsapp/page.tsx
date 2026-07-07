@@ -19,7 +19,7 @@ export default async function WhatsAppStepPage() {
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Connect WhatsApp</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Link your Meta WhatsApp Business number so Yebo can start replying.
+          Link your Meta WhatsApp Business number so Wazzy can start replying.
         </p>
       </div>
       <WhatsAppConnectForm connected={integration?.status === "connected"} />

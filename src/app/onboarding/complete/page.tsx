@@ -62,7 +62,7 @@ export default async function OnboardingCompletePage() {
       </Card>
 
       {!readyToLaunch && (
-        <p className="text-center text-sm text-warning">
+        <p className="text-center text-sm font-medium text-warning-text">
           Finish the required steps above before going live.
         </p>
       )}

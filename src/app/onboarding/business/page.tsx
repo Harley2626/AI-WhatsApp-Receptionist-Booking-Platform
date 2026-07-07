@@ -9,7 +9,7 @@ export default async function BusinessDetailsPage() {
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Tell us about your business</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          This is what your customers will see when Yebo replies on WhatsApp.
+          This is what your customers will see when Wazzy replies on WhatsApp.
         </p>
       </div>
       <BusinessDetailsForm defaultValues={business} />

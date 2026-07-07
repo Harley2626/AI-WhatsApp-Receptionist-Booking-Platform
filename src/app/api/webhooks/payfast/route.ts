@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyPayFastItn } from "@/lib/services/payfast";
 import { sendWhatsAppText } from "@/lib/services/whatsapp";
-import { formatCurrency } from "@/lib/utils";
+import { confirmBookingAfterPayment } from "@/lib/services/booking";
+import { getOrCreateOpenConversation, appendMessage } from "@/lib/services/conversations";
+import { formatCurrency, formatDate, formatTime } from "@/lib/utils";
 
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -37,18 +39,36 @@ export async function POST(request: Request) {
 
   if (result.status === "paid" && payment) {
     const bookingWithRelations = payment.booking as {
-      customer?: { whatsapp_phone?: string };
+      id?: string;
+      starts_at?: string;
+      customer?: { id?: string; whatsapp_phone?: string };
       service?: { name?: string };
     } | null;
     const phone = bookingWithRelations?.customer?.whatsapp_phone;
+    const customerId = bookingWithRelations?.customer?.id;
     const serviceName = bookingWithRelations?.service?.name ?? "your appointment";
 
+    if (bookingWithRelations?.id) {
+      // Only now — after payment clears — does the booking flip to confirmed
+      // and its reminder/follow-up jobs get scheduled.
+      await confirmBookingAfterPayment(admin, { bookingId: bookingWithRelations.id, businessId }).catch(() => null);
+    }
+
     if (phone) {
-      sendWhatsAppText(
-        businessId,
-        phone,
-        `Thanks! We've received your ${formatCurrency(payment.amount_cents)} deposit for ${serviceName}. See you soon! ✅`
-      ).catch(() => {});
+      const when = bookingWithRelations?.starts_at
+        ? ` on ${formatDate(bookingWithRelations.starts_at)} at ${formatTime(bookingWithRelations.starts_at)}`
+        : "";
+      const text = `Thanks! We've received your ${formatCurrency(payment.amount_cents)} payment for ${serviceName}. Your booking${when} is confirmed. See you soon! ✅`;
+
+      sendWhatsAppText(businessId, phone, text).catch(() => {});
+
+      if (customerId) {
+        getOrCreateOpenConversation(admin, businessId, customerId)
+          .then((conversation) =>
+            appendMessage(admin, { conversationId: conversation.id, businessId, direction: "outbound", body: text })
+          )
+          .catch(() => {});
+      }
     }
   }
 

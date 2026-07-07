@@ -30,7 +30,7 @@ export default async function CalendarStepPage() {
       </div>
       <Card>
         <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-teal/10 text-accent-teal">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-info/10 text-info">
             <CalendarDays className="h-7 w-7" />
           </div>
           {connected ? (

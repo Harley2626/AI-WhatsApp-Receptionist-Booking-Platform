@@ -13,7 +13,7 @@ export default async function DashboardServicesPage() {
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Services</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          What Yebo can book for customers. Turn a service off to hide it temporarily.
+          What Wazzy can book for customers. Turn a service off to hide it temporarily.
         </p>
       </div>
       <ServicesManager services={services} />

@@ -44,15 +44,15 @@ export default async function ReportsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Reports</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Reports</h1>
         <p className="mt-1 text-sm text-muted-foreground">Last 30 days at a glance.</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard icon={CalendarCheck} label="Bookings" value={totalBookings} tone="primary" />
-        <StatCard icon={TrendingUp} label="Booking conversion" value={`${conversionRate}%`} />
-        <StatCard icon={Wallet} label="Deposits collected" value={formatCurrency(revenueCents)} tone="primary" />
-        <StatCard icon={Repeat} label="Repeat customers" value={repeatCustomers} />
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard icon={CalendarCheck} label="Bookings" value={totalBookings} tone="green" />
+        <StatCard icon={TrendingUp} label="Booking conversion" value={`${conversionRate}%`} tone="blue" />
+        <StatCard icon={Wallet} label="Payments collected" value={formatCurrency(revenueCents)} tone="yellow" />
+        <StatCard icon={Repeat} label="Repeat customers" value={repeatCustomers} tone="purple" />
       </div>
 
       <Card>
@@ -63,7 +63,7 @@ export default async function ReportsPage() {
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-muted-foreground">
           <p>
-            Yebo handled <strong className="text-foreground">{totalConversations}</strong> conversation
+            Wazzy handled <strong className="text-foreground">{totalConversations}</strong> conversation
             {totalConversations === 1 ? "" : "s"} and turned them into{" "}
             <strong className="text-foreground">{totalBookings}</strong> booking{totalBookings === 1 ? "" : "s"} in
             the last 30 days.

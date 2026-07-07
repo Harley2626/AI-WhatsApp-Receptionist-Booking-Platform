@@ -28,14 +28,14 @@ export default async function PaymentsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Payments</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Deposits collected through Yebo via PayFast.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Payments collected through Wazzy via PayFast.</p>
       </div>
 
       {!payments || payments.length === 0 ? (
         <EmptyState
           icon={Wallet}
           title="No payments yet"
-          description="Deposit links Yebo sends to customers will show up here once PayFast is connected."
+          description="Payment links Wazzy sends to customers will show up here once PayFast is connected."
         />
       ) : (
         <Card>

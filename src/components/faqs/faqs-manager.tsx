@@ -30,7 +30,7 @@ export function FaqsManager({ faqs }: { faqs: Faq[] }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Yebo will answer using these — and only these — so it never makes something up.
+          Wazzy will answer using these — and only these — so it never makes something up.
         </p>
         {faqs.length === 0 ? (
           <EmptyState title="No FAQs yet" description="Add common questions like parking, cancellation policy, or payment options." />

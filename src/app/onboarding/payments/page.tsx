@@ -17,9 +17,10 @@ export default async function PaymentsStepPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Collect deposits (optional)</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Collect payments (optional)</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Connect PayFast so Yebo can send a secure deposit link for services that need one.
+          Connect PayFast so Wazzy can send a secure payment link — full payment or a deposit, your choice per
+          service — for services that need one.
         </p>
       </div>
       <PayFastConnectForm connected={integration?.status === "connected"} />

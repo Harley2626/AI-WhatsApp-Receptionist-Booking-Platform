@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendWhatsAppText } from "@/lib/services/whatsapp";
 import { getOrCreateOpenConversation, appendMessage } from "@/lib/services/conversations";
+import { expireUnpaidBooking } from "@/lib/services/booking";
+import { deleteCalendarEvent } from "@/lib/services/calendar";
 import { formatDate, formatTime } from "@/lib/utils";
 import type { Business, Customer, Service } from "@/types/database";
 
@@ -33,12 +35,49 @@ export async function GET(request: Request) {
       id: string;
       status: string;
       starts_at: string;
+      google_event_id: string | null;
       customer?: Customer;
       service?: Service;
       business?: Business;
     } | null;
 
-    if (!booking || booking.status === "cancelled" || !booking.business || !booking.customer) {
+    if (!booking || !booking.business || !booking.customer) {
+      await admin.from("scheduled_jobs").update({ sent_at: new Date().toISOString() }).eq("id", job.id);
+      continue;
+    }
+
+    if (job.type === "payment_expiry") {
+      if (booking.status !== "pending") {
+        // Already paid (confirmed) or already cancelled — nothing to release.
+        await admin.from("scheduled_jobs").update({ sent_at: new Date().toISOString() }).eq("id", job.id);
+        continue;
+      }
+      try {
+        const expired = await expireUnpaidBooking(admin, { bookingId: booking.id, businessId: booking.business.id });
+        if (expired && booking.google_event_id) {
+          deleteCalendarEvent(booking.business.id, booking.google_event_id).catch(() => {});
+        }
+        if (expired) {
+          const text = `Hi ${booking.customer.name ?? "there"}, your hold for ${booking.service?.name ?? "your appointment"} has expired because payment wasn't completed in time. Message us anytime to book again!`;
+          await sendWhatsAppText(booking.business.id, booking.customer.whatsapp_phone, text);
+          const conversation = await getOrCreateOpenConversation(admin, booking.business.id, booking.customer.id);
+          await appendMessage(admin, {
+            conversationId: conversation.id,
+            businessId: booking.business.id,
+            direction: "outbound",
+            body: text,
+          });
+          sent++;
+        }
+      } catch (expireError) {
+        console.error(`Failed to expire unpaid booking ${booking.id}`, expireError);
+        continue; // leave sent_at null so it retries next run
+      }
+      await admin.from("scheduled_jobs").update({ sent_at: new Date().toISOString() }).eq("id", job.id);
+      continue;
+    }
+
+    if (booking.status === "cancelled") {
       await admin.from("scheduled_jobs").update({ sent_at: new Date().toISOString() }).eq("id", job.id);
       continue;
     }

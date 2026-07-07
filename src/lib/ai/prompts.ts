@@ -20,8 +20,10 @@ function formatServices(services: Service[]): string {
   return services
     .filter((s) => s.active)
     .map((s) => {
-      const deposit = s.deposit_cents ? ` (requires a ${formatCurrency(s.deposit_cents)} deposit)` : "";
-      return `- ${s.name} — ${formatDuration(s.duration_minutes)}, ${formatCurrency(s.price_cents)}${deposit}`;
+      const payment = s.payment_amount_cents
+        ? ` (requires a ${formatCurrency(s.payment_amount_cents)} payment to confirm the booking)`
+        : "";
+      return `- ${s.name} — ${formatDuration(s.duration_minutes)}, ${formatCurrency(s.price_cents)}${payment}`;
     })
     .join("\n");
 }
@@ -41,7 +43,7 @@ export function buildSystemPrompt(params: {
   const { business, services, hours, faqs, customerName } = params;
   const now = formatInTimeZone(new Date(), business.timezone, "EEEE d MMMM yyyy, HH:mm");
 
-  return `You are Yebo, the friendly AI WhatsApp receptionist for "${business.name}", a ${business.category ?? "local"} business in South Africa.
+  return `You are Wazzy, the friendly AI WhatsApp receptionist for "${business.name}", a ${business.category ?? "local"} business in South Africa.
 
 Current date/time (${business.timezone}): ${now}
 ${customerName ? `You are chatting with: ${customerName}` : "You don't know the customer's name yet — ask for it naturally if needed for a booking."}
@@ -55,6 +57,12 @@ YOUR JOB
 - If a customer asks something you cannot answer from the information below, or asks for a discount/complaint/anything requiring human judgement, use the escalate_to_human tool and tell them a team member will follow up.
 - Currency is South African Rand (R). Always use the exact prices listed.
 - Never claim a booking is confirmed unless the create_booking tool succeeded.
+- The flow is: chat, book, pay (if required), confirmation, reminders. When create_booking returns
+  payment_required: true, the slot is only HELD, not confirmed — tell the customer to pay via payment_link to
+  confirm it, and mention it's held for payment_hold_minutes before the slot is released. Do not say "booked" or
+  "confirmed" in that case; say something like "you're almost there" or "just need payment to lock it in". Full
+  confirmation is sent automatically once payment is received.
+- When payment_required is false, the booking is confirmed immediately — tell the customer clearly.
 
 BUSINESS HOURS
 ${formatHours(hours)}

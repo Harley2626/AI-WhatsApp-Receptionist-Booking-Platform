@@ -1,4 +1,4 @@
-# AI WhatsApp Receptionist & Booking Platform
+# Wazzy — AI WhatsApp Receptionist & Booking Platform
 
 ## Vision
 
@@ -65,10 +65,12 @@ The business owner should feel like the software "just works."
 3.  AI answers FAQs.
 4.  AI checks availability.
 5.  Customer books.
-6.  AI collects deposit (optional).
+6.  AI collects payment (optional, full amount or a deposit — set per service by the business).
 7.  Confirmation sent.
 8.  Reminder sent.
 9.  Follow-up after appointment.
+
+Core flow in one line: **Chat → Book → Pay → Confirmation → Reminders.**
 
 No app download required.
 
@@ -98,7 +100,7 @@ Target setup time: under 10 minutes.
 -   Reschedule
 -   Cancellation
 -   FAQs
--   Deposit link
+-   Payment link (full payment or deposit, per service)
 -   Confirmation
 -   Reminder
 
