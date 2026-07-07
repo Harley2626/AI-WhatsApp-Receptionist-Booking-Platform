@@ -31,4 +31,9 @@ export function isPast(date: Date): boolean {
   return isBefore(date, new Date());
 }
 
+/** Returns an ISO timestamp N days before now. Kept out of component bodies to avoid impure-render lint rules. */
+export function daysAgoIso(days: number): string {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
 export { addMinutes, formatInTimeZone };

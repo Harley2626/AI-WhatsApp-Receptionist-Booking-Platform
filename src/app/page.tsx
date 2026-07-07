@@ -5,7 +5,6 @@ import {
   Clock,
   MessageCircle,
   Sparkles,
-  Wallet,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { buttonVariants } from "@/components/ui/button";

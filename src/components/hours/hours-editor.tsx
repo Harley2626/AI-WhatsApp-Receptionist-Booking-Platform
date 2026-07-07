@@ -45,6 +45,7 @@ export function HoursEditor({
   const [rows, setRows] = useState<Row[]>(() => toRows(initialHours));
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  const [saved, setSaved] = useState(false);
   const router = useRouter();
 
   function updateRow(day: number, patch: Partial<Row>) {
@@ -54,6 +55,7 @@ export function HoursEditor({
   async function handleSave() {
     setPending(true);
     setError(undefined);
+    setSaved(false);
     const result = await saveBusinessHours(rows);
     setPending(false);
     if (!result.ok) {
@@ -61,7 +63,12 @@ export function HoursEditor({
       return;
     }
     if (onSaved) onSaved();
-    if (redirectNext) router.push(redirectNext);
+    if (redirectNext) {
+      router.push(redirectNext);
+    } else {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    }
   }
 
   return (
@@ -102,8 +109,9 @@ export function HoursEditor({
         </CardContent>
       </Card>
       {error && <p className="text-sm text-destructive">{error}</p>}
+      {saved && <p className="text-sm text-primary">Saved ✓</p>}
       <Button onClick={handleSave} disabled={pending} className="w-full">
-        {pending ? "Saving…" : "Save & continue"}
+        {pending ? "Saving…" : redirectNext ? "Save & continue" : "Save changes"}
       </Button>
     </div>
   );
