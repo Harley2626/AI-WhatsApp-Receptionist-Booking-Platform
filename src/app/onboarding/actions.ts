@@ -72,14 +72,7 @@ export async function saveBusinessDetails(_prev: ActionResult | null, formData: 
 }
 
 export async function addService(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
-  const parsed = serviceSchema.safeParse({
-    name: formData.get("name"),
-    duration_minutes: formData.get("duration_minutes"),
-    price_cents: Math.round(Number(formData.get("price_rand") ?? 0) * 100),
-    payment_amount_cents: formData.get("payment_rand")
-      ? Math.round(Number(formData.get("payment_rand")) * 100)
-      : null,
-  });
+  const parsed = parseServiceFormData(formData);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message };
 
   const businessId = await requireOwnedBusinessId();
@@ -87,24 +80,55 @@ export async function addService(_prev: ActionResult | null, formData: FormData)
   const { error } = await supabase.from("services").insert({ business_id: businessId, ...parsed.data });
   if (error) return { ok: false, error: error.message };
 
+  revalidateServicePaths();
+  return { ok: true };
+}
+
+export async function updateService(serviceId: string, formData: FormData): Promise<ActionResult> {
+  const parsed = parseServiceFormData(formData);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message };
+
+  const businessId = await requireOwnedBusinessId();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("services")
+    .update(parsed.data)
+    .eq("id", serviceId)
+    .eq("business_id", businessId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidateServicePaths();
+  return { ok: true };
+}
+
+function parseServiceFormData(formData: FormData) {
+  return serviceSchema.safeParse({
+    name: formData.get("name"),
+    duration_minutes: formData.get("duration_minutes"),
+    price_cents: Math.round(Number(formData.get("price_rand") ?? 0) * 100),
+    payment_amount_cents: formData.get("payment_rand")
+      ? Math.round(Number(formData.get("payment_rand")) * 100)
+      : null,
+  });
+}
+
+function revalidateServicePaths() {
   revalidatePath("/onboarding/services");
   revalidatePath("/dashboard/services");
-  return { ok: true };
 }
 
 export async function deleteService(serviceId: string) {
   const businessId = await requireOwnedBusinessId();
   const supabase = await createClient();
   await supabase.from("services").delete().eq("id", serviceId).eq("business_id", businessId);
-  revalidatePath("/onboarding/services");
-  revalidatePath("/dashboard/services");
+  revalidateServicePaths();
 }
 
 export async function toggleServiceActive(serviceId: string, active: boolean) {
   const businessId = await requireOwnedBusinessId();
   const supabase = await createClient();
   await supabase.from("services").update({ active }).eq("id", serviceId).eq("business_id", businessId);
-  revalidatePath("/dashboard/services");
+  revalidateServicePaths();
 }
 
 export async function completeServicesStep() {

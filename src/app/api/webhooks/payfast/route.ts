@@ -25,50 +25,79 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
 
+  const { data: existing } = await admin
+    .from("payments")
+    .select("*, booking:bookings(*, customer:customers(*), service:services(*))")
+    .eq("booking_id", result.bookingId)
+    .eq("business_id", businessId)
+    .maybeSingle();
+
+  if (!existing) {
+    console.error("PayFast ITN for unknown payment", { businessId, bookingId: result.bookingId });
+    return new NextResponse("Payment not found", { status: 404 });
+  }
+
+  // PayFast retries ITNs until it gets 200 — never re-run side effects for an already-paid payment.
+  if (existing.status === "paid") {
+    return new NextResponse("OK", { status: 200 });
+  }
+
+  if (result.status !== "paid") {
+    await admin
+      .from("payments")
+      .update({
+        status: result.status,
+        provider_payment_id: result.providerPaymentId,
+      })
+      .eq("id", existing.id);
+    return new NextResponse("OK", { status: 200 });
+  }
+
+  // First successful payment only: transition pending → paid.
   const { data: payment } = await admin
     .from("payments")
     .update({
-      status: result.status,
+      status: "paid",
       provider_payment_id: result.providerPaymentId,
-      paid_at: result.status === "paid" ? new Date().toISOString() : null,
+      paid_at: new Date().toISOString(),
     })
-    .eq("booking_id", result.bookingId)
-    .eq("business_id", businessId)
+    .eq("id", existing.id)
+    .eq("status", "pending")
     .select("*, booking:bookings(*, customer:customers(*), service:services(*))")
     .maybeSingle();
 
-  if (result.status === "paid" && payment) {
-    const bookingWithRelations = payment.booking as {
-      id?: string;
-      starts_at?: string;
-      customer?: { id?: string; whatsapp_phone?: string };
-      service?: { name?: string };
-    } | null;
-    const phone = bookingWithRelations?.customer?.whatsapp_phone;
-    const customerId = bookingWithRelations?.customer?.id;
-    const serviceName = bookingWithRelations?.service?.name ?? "your appointment";
+  if (!payment) {
+    return new NextResponse("OK", { status: 200 });
+  }
 
-    if (bookingWithRelations?.id) {
-      // Only now — after payment clears — does the booking flip to confirmed
-      // and its reminder/follow-up jobs get scheduled.
-      await confirmBookingAfterPayment(admin, { bookingId: bookingWithRelations.id, businessId }).catch(() => null);
-    }
+  const bookingWithRelations = payment.booking as {
+    id?: string;
+    starts_at?: string;
+    customer?: { id?: string; whatsapp_phone?: string };
+    service?: { name?: string };
+  } | null;
+  const phone = bookingWithRelations?.customer?.whatsapp_phone;
+  const customerId = bookingWithRelations?.customer?.id;
+  const serviceName = bookingWithRelations?.service?.name ?? "your appointment";
 
-    if (phone) {
-      const when = bookingWithRelations?.starts_at
-        ? ` on ${formatDate(bookingWithRelations.starts_at)} at ${formatTime(bookingWithRelations.starts_at)}`
-        : "";
-      const text = `Thanks! We've received your ${formatCurrency(payment.amount_cents)} payment for ${serviceName}. Your booking${when} is confirmed. See you soon! ✅`;
+  if (bookingWithRelations?.id) {
+    await confirmBookingAfterPayment(admin, { bookingId: bookingWithRelations.id, businessId }).catch(() => null);
+  }
 
-      sendWhatsAppText(businessId, phone, text).catch(() => {});
+  if (phone) {
+    const when = bookingWithRelations?.starts_at
+      ? ` on ${formatDate(bookingWithRelations.starts_at)} at ${formatTime(bookingWithRelations.starts_at)}`
+      : "";
+    const text = `Thanks! We've received your ${formatCurrency(payment.amount_cents)} payment for ${serviceName}. Your booking${when} is confirmed. See you soon! ✅`;
 
-      if (customerId) {
-        getOrCreateOpenConversation(admin, businessId, customerId)
-          .then((conversation) =>
-            appendMessage(admin, { conversationId: conversation.id, businessId, direction: "outbound", body: text })
-          )
-          .catch(() => {});
-      }
+    sendWhatsAppText(businessId, phone, text).catch(() => {});
+
+    if (customerId) {
+      getOrCreateOpenConversation(admin, businessId, customerId)
+        .then((conversation) =>
+          appendMessage(admin, { conversationId: conversation.id, businessId, direction: "outbound", body: text })
+        )
+        .catch(() => {});
     }
   }
 
